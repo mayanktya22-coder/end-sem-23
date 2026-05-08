@@ -5,6 +5,9 @@ import axios from 'axios';
 
 const HF_API_URL = "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.2";
 
+// Access Token (Visible as requested)
+const HF_TOKEN = "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";
+
 const ChatbotWidget = ({ issData, newsData }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState(() => {
@@ -38,14 +41,11 @@ const ChatbotWidget = ({ issData, newsData }) => {
     setIsLoading(true);
 
     try {
-      const p1 = "hf_gMdHRGNBnPRW";
-      const p2 = "DvPaeGnmwlxdONCwGFwqUa";
-      const token = p1 + p2;
       const context = constructContext();
       const response = await axios.post(
         HF_API_URL,
         { inputs: `<s>[INST] ${context}\n\nUser: ${input} [/INST]` },
-        { headers: { Authorization: `Bearer ${token}` } }
+        { headers: { Authorization: `Bearer ${HF_TOKEN}` } }
       );
       let aiText = response.data[0]?.generated_text || "Error.";
       if (aiText.includes('[/INST]')) aiText = aiText.split('[/INST]').pop().trim();
