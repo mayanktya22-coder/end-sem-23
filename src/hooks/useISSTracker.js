@@ -2,8 +2,9 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import axios from 'axios';
 import { calculateSpeed } from '../utils/geoUtils';
 
-const ISS_API = 'http://api.open-notify.org/iss-now.json';
-const ASTROS_API = 'http://api.open-notify.org/astros.json';
+// HTTPS alternatives for production
+const ISS_API = 'https://api.wheretheiss.at/v1/satellites/25544';
+const ASTROS_API = 'https://corquaid.github.io/international-space-station-api/stats/astros.json'; // HTTPS fallback
 const GEO_API = 'https://nominatim.openstreetmap.org/reverse';
 
 export const useISSTracker = () => {
@@ -16,12 +17,13 @@ export const useISSTracker = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const lastFetchTime = useRef(null);
-
   const fetchAstros = async () => {
     try {
       const res = await axios.get(ASTROS_API);
-      setAstros(res.data);
+      setAstros({
+        number: res.data.number || res.data.people?.length || 0,
+        people: res.data.people || []
+      });
     } catch (err) {
       console.error('Error fetching astronauts:', err);
     }
@@ -48,30 +50,24 @@ export const useISSTracker = () => {
     try {
       const res = await axios.get(ISS_API);
       const newPos = {
-        latitude: parseFloat(res.data.iss_position.latitude),
-        longitude: parseFloat(res.data.iss_position.longitude),
+        latitude: parseFloat(res.data.latitude),
+        longitude: parseFloat(res.data.longitude),
         timestamp: res.data.timestamp,
       };
 
-      setPosition(prev => {
-        if (prev) {
-          const timeDiff = newPos.timestamp - prev.timestamp;
-          if (timeDiff > 0) {
-            const currentSpeed = calculateSpeed(prev, newPos, timeDiff);
-            // ISS average speed is ~27,600 km/h. If calculation is wildly off due to small time diffs, we cap/smooth it.
-            // But for this task, we'll show the calculated value.
-            setSpeed(currentSpeed);
-            setSpeedHistory(h => [...h.slice(-29), { speed: currentSpeed, time: new Date().toLocaleTimeString() }]);
-          }
-        }
-        return newPos;
-      });
-
+      // WheretheISS provides speed directly in km/h
+      const currentSpeed = res.data.velocity || 0;
+      setSpeed(currentSpeed);
+      
+      setPosition(newPos);
       setHistory(h => [...h.slice(-14), newPos]);
+      setSpeedHistory(h => [...h.slice(-29), { speed: currentSpeed, time: new Date().toLocaleTimeString() }]);
+      
       fetchLocationName(newPos.latitude, newPos.longitude);
       setLoading(false);
       setError(null);
     } catch (err) {
+      console.error('ISS Fetch Error:', err);
       setError('Failed to fetch ISS position');
       setLoading(false);
     }
