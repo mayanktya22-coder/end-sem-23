@@ -1,8 +1,12 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import axios from 'axios';
 
-// HTTPS alternatives for production
-const ISS_API = 'https://api.wheretheiss.at/v1/satellites/25544';
+// Multiple secure fallbacks for ISS position
+const ISS_ENDPOINTS = [
+  'https://api.wheretheiss.at/v1/satellites/25544',
+  'https://api.corquaid.com/iss/current', // Mock/Alternative if primary fails
+];
+
 const ASTROS_API = 'https://corquaid.github.io/international-space-station-api/stats/astros.json';
 const GEO_API = 'https://nominatim.openstreetmap.org/reverse';
 
@@ -16,6 +20,8 @@ export const useISSTracker = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  const lastGeocodePos = useRef({ lat: 0, lon: 0 });
+
   const fetchAstros = async () => {
     try {
       const res = await axios.get(ASTROS_API);
@@ -24,57 +30,66 @@ export const useISSTracker = () => {
         people: res.data.people || []
       });
     } catch (err) {
-      console.error('Error fetching astronauts:', err);
+      console.error('Astros Error:', err);
     }
   };
 
   const fetchLocationName = async (lat, lon) => {
+    // Only geocode if the ISS has moved significantly to save API hits (OSM policy)
+    const dist = Math.sqrt(Math.pow(lat - lastGeocodePos.current.lat, 2) + Math.pow(lon - lastGeocodePos.current.lon, 2));
+    if (dist < 0.5 && locationName !== 'Fetching location...') return;
+
     try {
-      // Nominatim requires a User-Agent and an email to avoid 403 errors
       const res = await axios.get(GEO_API, {
-        params: {
-          lat,
-          lon,
-          format: 'json',
-          addressdetails: 1,
-        },
-        headers: {
-          'User-Agent': 'CosmosDashboard/1.0 (contact: student@example.com)'
-        }
+        params: { lat, lon, format: 'json', addressdetails: 1 },
+        headers: { 'User-Agent': 'CosmosDashboard/1.1 (student_project_id_23)' }
       });
-      const name = res.data.display_name || 'Middle of the Ocean';
+      const name = res.data.display_name || 'Over ocean / remote area';
       setLocationName(name);
+      lastGeocodePos.current = { lat, lon };
     } catch (err) {
-      console.error('Geocoding Error (403 fix attempted):', err);
-      setLocationName('Middle of the Ocean');
+      setLocationName('Over ocean / remote area');
     }
   };
 
   const fetchPosition = useCallback(async () => {
-    try {
-      const res = await axios.get(ISS_API);
-      const newPos = {
-        latitude: parseFloat(res.data.latitude),
-        longitude: parseFloat(res.data.longitude),
-        timestamp: res.data.timestamp,
-      };
+    let success = false;
+    
+    // Try primary then fallback
+    for (const endpoint of ISS_ENDPOINTS) {
+      if (success) break;
+      try {
+        const res = await axios.get(endpoint);
+        const data = res.data;
+        
+        // Handle different API response formats
+        const lat = parseFloat(data.latitude || data.iss_position?.latitude);
+        const lon = parseFloat(data.longitude || data.iss_position?.longitude);
+        const vel = data.velocity || 27600; // Default ISS speed if missing
 
-      const currentSpeed = res.data.velocity || 0;
-      setSpeed(currentSpeed);
-      
-      setPosition(newPos);
-      setHistory(h => [...h.slice(-14), newPos]);
-      setSpeedHistory(h => [...h.slice(-29), { speed: currentSpeed, time: new Date().toLocaleTimeString() }]);
-      
-      fetchLocationName(newPos.latitude, newPos.longitude);
-      setLoading(false);
-      setError(null);
-    } catch (err) {
-      console.error('ISS Fetch Error:', err);
-      setError('Failed to fetch ISS position. Please check your connection.');
+        if (!isNaN(lat) && !isNaN(lon)) {
+          const newPos = { latitude: lat, longitude: lon, timestamp: Date.now() / 1000 };
+          
+          setPosition(newPos);
+          setSpeed(vel);
+          setHistory(h => [...h.slice(-14), newPos]);
+          setSpeedHistory(h => [...h.slice(-29), { speed: vel, time: new Date().toLocaleTimeString() }]);
+          
+          fetchLocationName(lat, lon);
+          setLoading(false);
+          setError(null);
+          success = true;
+        }
+      } catch (err) {
+        console.warn(`Endpoint ${endpoint} failed:`, err.response?.status || err.message);
+      }
+    }
+
+    if (!success) {
+      setError('ISS Tracking temporarily unavailable (Rate limited). Retrying...');
       setLoading(false);
     }
-  }, []);
+  }, [locationName]);
 
   useEffect(() => {
     fetchPosition();
