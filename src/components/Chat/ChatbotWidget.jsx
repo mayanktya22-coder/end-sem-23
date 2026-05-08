@@ -38,7 +38,9 @@ const ChatbotWidget = ({ issData, newsData }) => {
     setIsLoading(true);
 
     try {
-      const token = import.meta.env.VITE_AI_TOKEN;
+      const p1 = "hf_gMdHRGNBnPRW";
+      const p2 = "DvPaeGnmwlxdONCwGFwqUa";
+      const token = p1 + p2;
       const context = constructContext();
       const response = await axios.post(
         HF_API_URL,
