@@ -8,9 +8,9 @@ export const useNews = () => {
   const [news, setNews] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [category, setCategory] = useState('general');
+  const [category, setCategory] = useState('Technology'); // ok.surf categories: Business, Technology, Science, etc.
   const [searchTerm, setSearchTerm] = useState('');
-  const [sortBy, setSortBy] = useState('publishedAt');
+  const [sortBy, setSortBy] = useState('latest');
 
   const fetchNews = useCallback(async (cat = category, force = false) => {
     setLoading(true);
@@ -29,24 +29,26 @@ export const useNews = () => {
     }
 
     try {
-      const apiKey = import.meta.env.VITE_NEWS_API_KEY;
-      if (!apiKey) throw new Error('API Key missing');
-
-      const response = await axios.get('https://newsapi.org/v2/top-headlines', {
-        params: {
-          category: cat,
-          language: 'en',
-          pageSize: 20,
-          apiKey: apiKey,
-        },
-      });
-
-      const articles = response.data.articles || [];
-      setNews(articles);
+      // Using ok.surf API which is free and works in production (unlike NewsAPI.org free tier)
+      const response = await axios.get('https://ok.surf/api/v1/cors/news-feed');
       
-      // Save to cache
+      // ok.surf returns an object with categories as keys. We pick the requested one.
+      const categoryData = response.data[cat] || response.data['Technology'];
+      
+      // Map to a common format
+      const formattedNews = categoryData.map(article => ({
+        title: article.title,
+        url: article.link,
+        urlToImage: article.og || article.image,
+        publishedAt: new Date().toISOString(), // ok.surf doesn't always provide date, we use current
+        source: { name: article.source || 'Global News' },
+        description: article.title // description is often the same as title in this API
+      }));
+
+      setNews(formattedNews);
+      
       localStorage.setItem(CACHE_KEY, JSON.stringify({
-        data: articles,
+        data: formattedNews,
         timestamp: Date.now(),
         cat: cat
       }));
@@ -54,8 +56,7 @@ export const useNews = () => {
       setError(null);
     } catch (err) {
       console.error('News API Error:', err);
-      setError('Failed to load news articles. Please check your API key.');
-      // Fallback to empty or mock if needed, but here we just show error
+      setError('Failed to load news. This often happens if the API is rate-limited.');
     } finally {
       setLoading(false);
     }
@@ -67,19 +68,12 @@ export const useNews = () => {
 
   const filteredNews = news
     .filter(article => 
-      article.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      article.description?.toLowerCase().includes(searchTerm.toLowerCase())
-    )
-    .sort((a, b) => {
-      if (sortBy === 'publishedAt') {
-        return new Date(b.publishedAt) - new Date(a.publishedAt);
-      }
-      return (a.source?.name || '').localeCompare(b.source?.name || '');
-    });
+      article.title?.toLowerCase().includes(searchTerm.toLowerCase())
+    );
 
   return {
     news: filteredNews,
-    allNews: news, // Raw data for charts
+    allNews: news,
     loading,
     error,
     category,

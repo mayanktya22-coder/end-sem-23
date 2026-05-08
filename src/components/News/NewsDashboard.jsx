@@ -2,13 +2,29 @@ import React from 'react';
 import { Search, ChevronDown } from 'lucide-react';
 
 const NewsDashboard = ({ data }) => {
-  const { news, loading, error, searchTerm, setSearchTerm, sortBy, setSortBy, refresh } = data;
+  const { news, loading, error, searchTerm, setSearchTerm, sortBy, setSortBy, refresh, category, setCategory } = data;
 
   return (
     <div className="dashboard-card w-full">
-      <div className="flex justify-between items-center mb-6">
+      <div className="flex justify-between items-center mb-4">
         <h2 className="text-xl font-bold text-[#1a1a1a] dark:text-white">Breaking News</h2>
         <button onClick={refresh} className="btn-refresh">Refresh</button>
+      </div>
+
+      <div className="flex gap-2 overflow-x-auto pb-4 no-scrollbar mb-4">
+        {['World', 'Business', 'Technology', 'Science', 'Health', 'Entertainment', 'Sports'].map(cat => (
+          <button
+            key={cat}
+            onClick={() => setCategory(cat)}
+            className={`px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all whitespace-nowrap ${
+              category === cat
+                ? 'bg-[#0077b6] text-white shadow-md'
+                : 'bg-slate-100 dark:bg-slate-800 text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700'
+            }`}
+          >
+            {cat}
+          </button>
+        ))}
       </div>
 
       <div className="flex flex-col md:flex-row gap-4 mb-6">
@@ -27,7 +43,7 @@ const NewsDashboard = ({ data }) => {
           <select
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value)}
-            className="w-full pl-3 pr-8 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-sm appearance-none focus:ring-1 focus:ring-[#0077b6] outline-none text-slate-600"
+            className="w-full pl-3 pr-8 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-sm appearance-none focus:ring-1 focus:ring-[#0077b6] outline-none text-slate-600 dark:text-slate-400"
           >
             <option value="publishedAt">Sort by Date</option>
             <option value="source">Sort by Source</option>
@@ -48,7 +64,7 @@ const NewsDashboard = ({ data }) => {
                 {article.urlToImage ? (
                   <img src={article.urlToImage} alt="" className="w-full h-full object-cover" />
                 ) : (
-                  <div className="w-full h-full flex items-center justify-center text-slate-400 font-bold">NEWS</div>
+                  <div className="w-full h-full flex items-center justify-center text-slate-400 font-bold text-xs">NEWS</div>
                 )}
               </div>
               <div className="flex-grow flex flex-col justify-center">
