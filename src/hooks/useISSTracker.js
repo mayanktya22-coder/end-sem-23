@@ -1,10 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import axios from 'axios';
-import { calculateSpeed } from '../utils/geoUtils';
 
 // HTTPS alternatives for production
 const ISS_API = 'https://api.wheretheiss.at/v1/satellites/25544';
-const ASTROS_API = 'https://corquaid.github.io/international-space-station-api/stats/astros.json'; // HTTPS fallback
+const ASTROS_API = 'https://corquaid.github.io/international-space-station-api/stats/astros.json';
 const GEO_API = 'https://nominatim.openstreetmap.org/reverse';
 
 export const useISSTracker = () => {
@@ -31,6 +30,7 @@ export const useISSTracker = () => {
 
   const fetchLocationName = async (lat, lon) => {
     try {
+      // Nominatim requires a User-Agent and an email to avoid 403 errors
       const res = await axios.get(GEO_API, {
         params: {
           lat,
@@ -38,10 +38,14 @@ export const useISSTracker = () => {
           format: 'json',
           addressdetails: 1,
         },
+        headers: {
+          'User-Agent': 'CosmosDashboard/1.0 (contact: student@example.com)'
+        }
       });
       const name = res.data.display_name || 'Middle of the Ocean';
       setLocationName(name);
     } catch (err) {
+      console.error('Geocoding Error (403 fix attempted):', err);
       setLocationName('Middle of the Ocean');
     }
   };
@@ -55,7 +59,6 @@ export const useISSTracker = () => {
         timestamp: res.data.timestamp,
       };
 
-      // WheretheISS provides speed directly in km/h
       const currentSpeed = res.data.velocity || 0;
       setSpeed(currentSpeed);
       
@@ -68,7 +71,7 @@ export const useISSTracker = () => {
       setError(null);
     } catch (err) {
       console.error('ISS Fetch Error:', err);
-      setError('Failed to fetch ISS position');
+      setError('Failed to fetch ISS position. Please check your connection.');
       setLoading(false);
     }
   }, []);
